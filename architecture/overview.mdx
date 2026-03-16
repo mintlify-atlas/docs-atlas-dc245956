@@ -1,0 +1,122 @@
+---
+title: "Architecture overview"
+description: "How E-Dokan Store is structured: App Router, server components, client components, and the layered design that connects them."
+---
+
+E-Dokan Store is a Next.js 13 e-commerce storefront that uses the **App Router**. Data is fetched on the server via async action functions, while interactive UI (cart, modals, toasts) runs as client components powered by Zustand stores.
+
+## Layered architecture
+
+<CardGroup cols={2}>
+  <Card title="Pages" icon="file" href="/architecture/data-fetching">
+    Server or client components in `app/(routes)/`. Each page composes actions, components, and hooks to build a full view.
+  </Card>
+  <Card title="Actions" icon="bolt" href="/architecture/data-fetching">
+    Pure async TypeScript functions in `actions/`. They call the backend REST API and return typed data to pages.
+  </Card>
+  <Card title="Components" icon="puzzle" href="/architecture/overview">
+    Reusable UI in `components/`. Stateless presentational pieces accept props derived from action results.
+  </Card>
+  <Card title="Hooks" icon="code" href="/architecture/state-management">
+    Zustand stores in `hooks/`. `useCart` persists to `localStorage`; `usePreviewModal` holds ephemeral UI state.
+  </Card>
+</CardGroup>
+
+<CardGroup cols={2}>
+  <Card title="Types" icon="braces" href="/architecture/overview">
+    TypeScript interfaces in `types/types.ts`. Shared across every layer so pages, actions, and components all agree on the same shapes.
+  </Card>
+  <Card title="Providers" icon="layers" href="/architecture/state-management">
+    `ModalProvider` and `ToastProvider` in `providers/`. Mounted once in the root layout; guard against SSR/client hydration mismatches.
+  </Card>
+</CardGroup>
+
+## Route structure
+
+All user-facing routes live inside the `app/(routes)/` route group. The group segment is invisible in the URL — it exists purely to keep route files organised under the shared root layout.
+
+| Route | File path | Rendering strategy | Key actions used |
+|---|---|---|---|
+| `/` | `app/(routes)/page.tsx` | SSR (async server component) | `getBillboard`, `getProducts` |
+| `/category/[categoryId]` | `app/(routes)/category/[categoryId]/page.tsx` | SSR (async server component) | `getCategory`, `getProducts`, `getSizes`, `getColors` |
+| `/product/[productId]` | `app/(routes)/product/[productId]/page.tsx` | SSR (async server component) | `getProduct`, `getProducts` |
+| `/cart` | `app/(routes)/cart/page.tsx` | Client component (`"use client"`) | `useCart` (Zustand) |
+
+<Note>
+The home page, category page, and product page all export `revalidate = 0`, which tells Next.js to bypass the data cache and always fetch fresh data from the API on every request. The cart page reads entirely from `localStorage` and has no server data needs.
+</Note>
+
+## Root layout
+
+The root layout at `app/layout.tsx` wraps every route. It:
+
+1. Applies the **Urbanist** Google Font to the entire document.
+2. Exports static `metadata` (`title` and `description`) consumed by Next.js for `<head>` generation.
+3. Mounts `ModalProvider` and `ToastProvider` before any page content so they are available immediately.
+4. Renders the persistent `Navbar` and `Footer` around `{children}`.
+
+```tsx app/layout.tsx
+import Footer from "@/components/Footer";
+import "./globals.css";
+import type { Metadata } from "next";
+import { Urbanist } from "next/font/google";
+import Navbar from "@/components/Navbar";
+import ModalProvider from "@/providers/modal-provider";
+import ToastProvider from "@/providers/toast-provider";
+
+const font = Urbanist({ subsets: ["latin"] });
+
+export const metadata: Metadata = {
+  title: "Edokan",
+  description: "Your next home for you need",
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en">
+      <body className={font.className}>
+        <ModalProvider />
+        <ToastProvider />
+        <Navbar />
+        {children}
+        <Footer />
+      </body>
+    </html>
+  );
+}
+```
+
+`ModalProvider` and `ToastProvider` are placed before `Navbar` and `{children}` so that any component in the tree can trigger a toast or open the preview modal without worrying about render order.
+
+## Shared types
+
+All TypeScript interfaces live in `types/types.ts` and are imported by actions, pages, and components alike. Core domain types are:
+
+| Interface | Description |
+|---|---|
+| `Product` | A product with category, size, color, images, price, and featured flag |
+| `Category` | A category with its associated `Billboard` |
+| `Billboard` | A hero banner with `id`, `label`, and `imageUrl` |
+| `Size` | A size option (`id`, `name`, `value`) |
+| `Color` | A color option (`id`, `name`, `value`) |
+| `CartStore` | Shape of the Zustand cart store |
+| `PreviewModalStore` | Shape of the Zustand preview modal store |
+
+## Utility helpers
+
+`lib/utils.ts` exports a single `cn` helper that merges Tailwind CSS class names using `clsx` and `tailwind-merge`:
+
+```typescript lib/utils.ts
+import { type ClassValue, clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+```
+
+This utility is used across all components to conditionally apply Tailwind classes without conflicts.

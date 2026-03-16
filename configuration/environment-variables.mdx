@@ -1,0 +1,79 @@
+---
+title: 'Environment variables'
+description: 'Configure the environment variables required to connect E-Dokan to your backend API.'
+---
+
+E-Dokan uses a single environment variable to connect the storefront to its backend API. All configuration is done through a `.env.local` file at the root of the project.
+
+## Required variables
+
+| Variable | Description | Example |
+|---|---|---|
+| `NEXT_PUBLIC_API_URL` | Base URL of the backend API, including the store ID path segment | `https://your-admin.vercel.app/api/your-store-id` |
+
+## Creating .env.local
+
+Create a `.env.local` file in the project root:
+
+```bash .env.local
+NEXT_PUBLIC_API_URL=https://your-api-base-url.com
+```
+
+Replace the value with the full base URL of your backend API, including the store ID segment. This URL is the same one shown in your admin dashboard's API settings.
+
+<Warning>
+  Changing `NEXT_PUBLIC_API_URL` in a production Vercel project requires a new deployment. Updating the variable in the Vercel dashboard does not take effect until you trigger a redeploy.
+</Warning>
+
+## The NEXT_PUBLIC\_ prefix
+
+The `NEXT_PUBLIC_` prefix tells Next.js to expose this variable to the browser bundle at build time. Without this prefix, the variable is only available in server-side Node.js code and would be `undefined` in client components.
+
+Because `NEXT_PUBLIC_API_URL` is inlined into the JavaScript bundle, treat it as public — do not use this variable to store secrets.
+
+## Where it's used
+
+Every server action in the `actions/` directory reads this variable to construct its request URL. For example, `actions/get-products.tsx`:
+
+```typescript actions/get-products.tsx
+const URL = `${process.env.NEXT_PUBLIC_API_URL}/products`;
+
+const getProducts = async ({ categoryId, colorId, sizeId, isFeatured }: Query) => {
+  const queryParams = [];
+
+  if (categoryId) queryParams.push(`categoryId=${categoryId}`);
+  if (colorId) queryParams.push(`colorId=${colorId}`);
+  if (sizeId) queryParams.push(`sizeId=${sizeId}`);
+  if (isFeatured !== undefined) queryParams.push(`isFeatured=${isFeatured}`);
+
+  const urlWithQuery =
+    queryParams.length > 0 ? `${URL}?${queryParams.join("&")}` : URL;
+
+  const res = await fetch(urlWithQuery);
+  return res.json();
+};
+```
+
+The full set of URLs constructed from `NEXT_PUBLIC_API_URL` are:
+
+- `{NEXT_PUBLIC_API_URL}/products`
+- `{NEXT_PUBLIC_API_URL}/products/:id`
+- `{NEXT_PUBLIC_API_URL}/categories`
+- `{NEXT_PUBLIC_API_URL}/categories/:id`
+- `{NEXT_PUBLIC_API_URL}/billboards/:id`
+- `{NEXT_PUBLIC_API_URL}/sizes`
+- `{NEXT_PUBLIC_API_URL}/colors`
+
+## Cloudinary image domain
+
+Product images are served from Cloudinary. The domain `res.cloudinary.com` is pre-configured in `next.config.js` so Next.js image optimization works without additional setup:
+
+```javascript next.config.js
+const nextConfig = {
+  images: {
+    domains: ["res.cloudinary.com"]
+  }
+};
+```
+
+If your backend stores images on a different host, add that domain to the `domains` array and redeploy. Requests to any unlisted domain will return a 400 error from the Next.js image optimization endpoint.

@@ -1,0 +1,112 @@
+---
+title: "Homepage"
+description: "Billboard hero section and featured products on the E-Dokan storefront homepage."
+---
+
+The homepage is an async server component that fetches a billboard and featured products in parallel, then renders them inside a shared `Container` layout.
+
+## Page structure
+
+<CardGroup cols={2}>
+  <Card title="Billboard" icon="image">
+    Full-width hero banner rendered from a backend billboard record. Displays a background image and a bold label.
+  </Card>
+  <Card title="Featured Products" icon="tag">
+    A responsive product grid showing only items marked `isFeatured: true` in the backend.
+  </Card>
+</CardGroup>
+
+## Source code
+
+```tsx app/(routes)/page.tsx
+import getBillboard from "@/actions/get-billboard";
+import getProducts from "@/actions/get-products";
+import Billboard from "@/components/Billboard";
+import ProductList from "@/components/ProductList";
+import Container from "@/components/ui/Container";
+import React from "react";
+
+export const revalidate = 0;
+const HomePage = async () => {
+  const billboard = await getBillboard("75c73606-f10d-48eb-9d57-440b98c484f6");
+  const product = await getProducts({ isFeatured: true });
+  return (
+    <Container>
+      <div className="space-y-20 pb-10">
+        <Billboard data={billboard} />
+        <div className="flex flex-col gap-y-8 px-4 sm:px-6 lg:px-8">
+          <ProductList title="Featured Product" items={product} />
+        </div>
+      </div>
+    </Container>
+  );
+};
+
+export default HomePage;
+```
+
+## Data fetching
+
+### `revalidate = 0`
+
+The `export const revalidate = 0` directive disables Next.js Incremental Static Regeneration for this route. Every request triggers a fresh server-side data fetch rather than serving a cached page. This ensures the homepage always reflects the latest billboard and product data from the backend.
+
+### Server-side calls
+
+Both data fetches run independently on the server before any HTML is sent to the browser:
+
+| Call | Source | Purpose |
+|---|---|---|
+| `getBillboard(id)` | `/billboards/:id` | Fetches the hero banner image and label |
+| `getProducts({ isFeatured: true })` | `/products?isFeatured=true` | Fetches products flagged as featured |
+
+## Billboard ID
+
+<Warning>
+The billboard ID `"75c73606-f10d-48eb-9d57-440b98c484f6"` is hardcoded in `page.tsx`. This value must match an existing billboard record in your backend. If you replace or re-seed your database, update this ID to avoid a runtime error.
+</Warning>
+
+## Components
+
+### Billboard
+
+Renders a full-width card with a CSS background image and a centered label overlay.
+
+```tsx components/Billboard.tsx
+const Billboard = ({ data }: BillboardProps) => {
+  return (
+    <div className="p-4 sm:p-6 lg:p-8 rounded-xl overflow-hidden">
+      <div
+        style={{ backgroundImage: `url(${data?.imageUrl})` }}
+        className="rounded-xl relative aspect-square md:aspect-[2.4/1] overflow-hidden bg-cover"
+      >
+        <div className="h-full w-full flex flex-col justify-center items-center text-center gap-y-8">
+          <div className="font-bold text-3xl sm:text-5xl lg:text-6xl sm:max-w-xl max-w-xs">
+            {data?.label}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+```
+
+### ProductList
+
+Accepts a `title` string and an array of `Product` objects. Renders a responsive grid using `ProductCard` for each item, or a `NoResults` message when the array is empty.
+
+```tsx components/ProductList.tsx
+const ProductList = ({ items, title }: ProductList) => {
+  return (
+    <div className="space-y-4">
+      <h3 className="font-bold text-3xl">{title}</h3>
+      {items.length === 0 && <NoResults />}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        {items.map((item) => (
+          <ProductCard key={item.id} data={item} />
+        ))}
+      </div>
+    </div>
+  );
+};
+```

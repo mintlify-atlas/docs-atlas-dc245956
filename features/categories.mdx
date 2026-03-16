@@ -1,0 +1,181 @@
+---
+title: "Category pages"
+description: "Dynamic category routes with server-side product filtering by size and color."
+---
+
+Each category is served by the dynamic route `/category/[categoryId]`. The page is a server component that reads the category ID from the URL, fetches matching products, and renders a billboard, a product grid, and filter controls.
+
+## Route
+
+```
+/category/[categoryId]
+```
+
+The `categoryId` segment is provided by Next.js as `params.categoryId`. Active filter values are carried in the URL query string as `searchParams`.
+
+## Page source code
+
+```tsx app/(routes)/category/[categoryId]/page.tsx
+import getCategory from "@/actions/get-category";
+import getColors from "@/actions/get-colors";
+import getProducts from "@/actions/get-products";
+import getSizes from "@/actions/get-sizes";
+import Billboard from "@/components/Billboard";
+import Container from "@/components/ui/Container";
+import { CategoryProps } from "@/types/types";
+import React from "react";
+import Filter from "./components/Filter";
+import NoResults from "@/components/ui/no-results";
+import ProductCard from "@/components/ui/product-card";
+import MobileFilter from "./components/mobile-filter";
+
+export const revalidate = 0;
+
+const CategoryPage = async ({ params, searchParams }: CategoryProps) => {
+  const products = await getProducts({
+    categoryId: params.categoryId,
+    colorId: searchParams.colorId,
+    sizeId: searchParams.sizeId,
+  });
+  const sizes = await getSizes();
+  const colors = await getColors();
+  const category = await getCategory(params.categoryId);
+
+  return (
+    <div className="bg-white">
+      <Container>
+        <Billboard data={category.billboard} />
+        <div className="px-4 sm:px-6 lg:px-8 pb-24">
+          <div className="lg:grid lg:grid-cols-5 lg:gap-x-8">
+            {/* Mobile Filters */}
+            <MobileFilter sizes={sizes} colors={colors} />
+            {/* Desktop Filter */}
+            <div className="hidden lg:block">
+              <Filter valueKey="sizeId" name="Sizes" data={sizes} />
+              <Filter valueKey="colorId" name="Colors" data={colors} />
+            </div>
+            <div className="mt-6 lg:col-span-4 lg:mt-0">
+              {products.length === 0 && <NoResults />}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {products.map((product) => (
+                  <ProductCard key={product.id} data={product} />
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </Container>
+    </div>
+  );
+};
+
+export default CategoryPage;
+```
+
+## How product filtering works
+
+`getProducts` is called server-side with up to three filters. The values come directly from the URL:
+
+| Parameter | Source | Description |
+|---|---|---|
+| `categoryId` | `params.categoryId` | Scopes products to the current category |
+| `colorId` | `searchParams.colorId` | Filters by a specific color ID |
+| `sizeId` | `searchParams.sizeId` | Filters by a specific size ID |
+
+When a filter is absent from the URL, the corresponding parameter is `undefined` and `getProducts` omits it from the API query string, returning all values for that dimension.
+
+## `CategoryProps` type
+
+```typescript types/types.ts
+export interface CategoryProps {
+  params: {
+    categoryId: string;
+  };
+  searchParams: {
+    colorId: string;
+    sizeId: string;
+  };
+}
+```
+
+## Filter UI
+
+The filter controls exist in two forms that are shown at different breakpoints.
+
+<CardGroup cols={2}>
+  <Card title="Desktop sidebar" icon="layout-sidebar">
+    Two `Filter` components rendered in a `hidden lg:block` div, occupying one column of the five-column grid.
+  </Card>
+  <Card title="Mobile drawer" icon="menu">
+    A `MobileFilter` button (`lg:hidden`) that opens a Headless UI `Dialog` panel sliding in from the right. Contains the same two `Filter` components.
+  </Card>
+</CardGroup>
+
+### Filter component
+
+The `Filter` component is a client component that reads the current URL search params, renders a button for each option, and uses `query-string` to update the URL when a filter is selected or deselected.
+
+```tsx app/(routes)/category/[categoryId]/components/Filter.tsx
+"use client";
+import Button from "@/components/ui/Button";
+import { cn } from "@/lib/utils";
+import { FilterProps } from "@/types/types";
+import { useRouter, useSearchParams } from "next/navigation";
+import queryString from "query-string";
+import React from "react";
+
+const Filter = ({ data, name, valueKey }: FilterProps) => {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const selectedValue = searchParams.get(valueKey);
+  const onClick = (id: string) => {
+    const current = queryString.parse(searchParams.toString());
+    const query = {
+      ...current,
+      [valueKey]: id,
+    };
+    if (current[valueKey] === id) {
+      query[valueKey] = null;
+    }
+
+    const url = queryString.stringifyUrl(
+      {
+        url: window.location.href,
+        query,
+      },
+      { skipNull: true }
+    );
+    router.push(url);
+  };
+  // ...
+};
+```
+
+**Toggle behaviour:** clicking an already-active filter sets its query parameter to `null`. `queryString.stringifyUrl` with `{ skipNull: true }` removes it from the URL entirely, effectively resetting that filter.
+
+### MobileFilter component
+
+```tsx app/(routes)/category/[categoryId]/components/mobile-filter.tsx
+const MobileFilter = ({ sizes, colors }: MobileFilterProps) => {
+  const [isOpen, setIsOpen] = useState(false);
+  // ...
+  return (
+    <>
+      <Button className="flex items-center gap-x-2 lg:hidden" onClick={onOpen}>
+        Filters <Plus size={20} />
+      </Button>
+      <Dialog open={isOpen} as="div" className="relative z-40 lg:hidden" onClose={onClose}>
+        {/* ... */}
+        <div className="p-4">
+          <Filter valueKey="sizeId" name="Sizes" data={sizes} />
+          <Filter valueKey="colorId" name="Colors" data={colors} />
+        </div>
+      </Dialog>
+    </>
+  );
+};
+```
+
+<Note>
+Both the desktop sidebar and the mobile drawer render identical `Filter` instances. State is stored in the URL, so the selected filters persist across breakpoint changes and browser refreshes.
+</Note>

@@ -1,0 +1,189 @@
+---
+title: "Product filtering"
+description: "URL-based size and color filtering for category product grids."
+---
+
+Products on a category page can be filtered by size and color. Filters are stored entirely in the URL query string, making them bookmarkable, shareable, and compatible with server-side rendering.
+
+## How filters are applied
+
+<Steps>
+  <Step title="User selects a filter">
+    The `Filter` client component appends or updates the relevant query parameter in the URL using `router.push()`.
+  </Step>
+  <Step title="Page re-renders on the server">
+    Next.js re-runs the `CategoryPage` server component with the updated `searchParams`. The new `colorId` or `sizeId` value is forwarded to `getProducts`.
+  </Step>
+  <Step title="API call with filter parameters">
+    `getProducts` constructs the query string and fetches only the matching products from the backend.
+  </Step>
+  <Step title="Product grid updates">
+    The server returns filtered HTML. The product grid reflects the selection without any client-side filtering.
+  </Step>
+</Steps>
+
+## URL structure
+
+Filters are represented as query parameters on the category URL:
+
+```bash
+/category/abc123?colorId=red&sizeId=large
+```
+
+Either parameter can be present alone:
+
+```bash
+# Only color filter active
+/category/abc123?colorId=red
+
+# Only size filter active
+/category/abc123?sizeId=large
+
+# No filters — full category
+/category/abc123
+```
+
+## getProducts query parameters
+
+```typescript actions/get-products.tsx
+interface Query {
+  categoryId?: string;
+  colorId?: string;
+  sizeId?: string;
+  isFeatured?: boolean;
+}
+
+const getProducts = async ({ categoryId, colorId, sizeId, isFeatured }: Query): Promise<Product[]> => {
+  const queryParams = [];
+
+  if (categoryId) queryParams.push(`categoryId=${categoryId}`);
+  if (colorId)    queryParams.push(`colorId=${colorId}`);
+  if (sizeId)     queryParams.push(`sizeId=${sizeId}`);
+  if (isFeatured !== undefined) queryParams.push(`isFeatured=${isFeatured}`);
+
+  const urlWithQuery =
+    queryParams.length > 0 ? `${URL}?${queryParams.join("&")}` : URL;
+
+  const res = await fetch(urlWithQuery);
+  return res.json();
+};
+```
+
+Only defined parameters are included in the request. Undefined values are silently omitted.
+
+## Filter component
+
+The `Filter` component is reused for both sizes and colors. It receives a `valueKey` prop (`"sizeId"` or `"colorId"`) that determines which query parameter it manages.
+
+```tsx app/(routes)/category/[categoryId]/components/Filter.tsx
+"use client";
+import Button from "@/components/ui/Button";
+import { cn } from "@/lib/utils";
+import { FilterProps } from "@/types/types";
+import { useRouter, useSearchParams } from "next/navigation";
+import queryString from "query-string";
+
+const Filter = ({ data, name, valueKey }: FilterProps) => {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const selectedValue = searchParams.get(valueKey);
+
+  const onClick = (id: string) => {
+    const current = queryString.parse(searchParams.toString());
+    const query = {
+      ...current,
+      [valueKey]: id,
+    };
+    // Clicking the active filter deselects it
+    if (current[valueKey] === id) {
+      query[valueKey] = null;
+    }
+
+    const url = queryString.stringifyUrl(
+      { url: window.location.href, query },
+      { skipNull: true }  // removes null keys from the URL
+    );
+    router.push(url);
+  };
+
+  return (
+    <div className="mb-8">
+      <h3 className="text-lg font-semibold">{name}</h3>
+      <hr className="my-4" />
+      <div className="flex flex-wrap gap-2">
+        {data.map((filter) => (
+          <div key={filter.id} className="flex items-center">
+            <Button
+              className={cn(
+                "rounded-md text-sm text-gray-800 p-2 bg-white border border-gray-300",
+                selectedValue === filter.id && "bg-black text-white"
+              )}
+              onClick={() => onClick(filter.id)}
+            >
+              {filter.name}
+            </Button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+```
+
+### FilterProps interface
+
+```typescript types/types.ts
+export interface FilterProps {
+  data: (Size | Color)[];
+  name: string;       // Section heading, e.g. "Sizes" or "Colors"
+  valueKey: string;   // Query parameter key, e.g. "sizeId" or "colorId"
+}
+```
+
+### Toggle behaviour
+
+If the user clicks a filter button that is already selected (`current[valueKey] === id`), the query value is set to `null`. Because `queryString.stringifyUrl` is called with `{ skipNull: true }`, the parameter is removed from the URL entirely, deselecting the filter.
+
+## Desktop sidebar vs. mobile drawer
+
+The category page renders two separate filter UIs, each visible at a different breakpoint:
+
+| Layout | Component | Visibility | Implementation |
+|---|---|---|---|
+| Desktop | `Filter` (×2, inline) | `hidden lg:block` | Static sidebar in column 1 of a 5-column grid |
+| Mobile | `MobileFilter` | `lg:hidden` | Button that opens a Headless UI `Dialog` panel |
+
+### MobileFilter
+
+```tsx app/(routes)/category/[categoryId]/components/mobile-filter.tsx
+const MobileFilter = ({ sizes, colors }: MobileFilterProps) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <>
+      <Button className="flex items-center gap-x-2 lg:hidden" onClick={() => setIsOpen(true)}>
+        Filters <Plus size={20} />
+      </Button>
+      <Dialog open={isOpen} as="div" className="relative z-40 lg:hidden" onClose={() => setIsOpen(false)}>
+        <div className="fixed inset-0 bg-black bg-opacity-25">
+          <div className="fixed inset-0 z-40 flex">
+            <Dialog.Panel className="relative ml-auto flex h-full w-full max-w-xs flex-col overflow-y-auto bg-white py-4 pb-6 shadow-xl">
+              <div className="flex items-center justify-end px-4">
+                <IconButton icon={<X size={15} />} onClick={() => setIsOpen(false)} />
+              </div>
+              <div className="p-4">
+                <Filter valueKey="sizeId" name="Sizes" data={sizes} />
+                <Filter valueKey="colorId" name="Colors" data={colors} />
+              </div>
+            </Dialog.Panel>
+          </div>
+        </div>
+      </Dialog>
+    </>
+  );
+};
+```
+
+<Note>
+Both the desktop sidebar and the mobile drawer use the same `Filter` component with the same `valueKey` props. Because the filter state lives in the URL, selections made in one are immediately reflected in the other.
+</Note>

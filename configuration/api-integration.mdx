@@ -1,0 +1,309 @@
+---
+title: 'API integration'
+description: 'How E-Dokan connects to its REST API backend and the shape of each response.'
+---
+
+E-Dokan is a frontend-only Next.js storefront. It has no database and performs no mutations — it reads product, category, billboard, size, and color data from an external REST API. Any backend that implements the endpoints documented below is compatible.
+
+All requests originate from server-side action files in the `actions/` directory. The base URL for every request is set by `NEXT_PUBLIC_API_URL` in your environment. See [Environment variables](/configuration/environment-variables) for setup instructions.
+
+## Endpoints
+
+### GET /products
+
+Fetches a list of products. All query parameters are optional; omitting them returns all products.
+
+<ParamField query="categoryId" type="string">
+  Filter products by category ID.
+</ParamField>
+
+<ParamField query="colorId" type="string">
+  Filter products by color ID.
+</ParamField>
+
+<ParamField query="sizeId" type="string">
+  Filter products by size ID.
+</ParamField>
+
+<ParamField query="isFeatured" type="boolean">
+  When `true`, returns only featured products. When `false`, returns only non-featured products.
+</ParamField>
+
+**Response:** `Product[]`
+
+The action in `actions/get-products.tsx` builds the query string by collecting only the parameters that are defined:
+
+```typescript actions/get-products.tsx
+const queryParams = [];
+
+if (categoryId) queryParams.push(`categoryId=${categoryId}`);
+if (colorId) queryParams.push(`colorId=${colorId}`);
+if (sizeId) queryParams.push(`sizeId=${sizeId}`);
+if (isFeatured !== undefined) queryParams.push(`isFeatured=${isFeatured}`);
+
+const urlWithQuery =
+  queryParams.length > 0 ? `${URL}?${queryParams.join("&")}` : URL;
+```
+
+Example constructed URL:
+```
+https://your-admin.vercel.app/api/your-store-id/products?categoryId=abc&isFeatured=true
+```
+
+---
+
+### GET /products/:id
+
+Fetches a single product by its ID.
+
+**Response:** `Product`
+
+---
+
+### GET /categories
+
+Fetches all categories for the store.
+
+**Response:** `Category[]`
+
+---
+
+### GET /categories/:id
+
+Fetches a single category by its ID, including its associated billboard.
+
+**Response:** `Category`
+
+---
+
+### GET /billboards/:id
+
+Fetches a single billboard by its ID.
+
+**Response:** `Billboard`
+
+---
+
+### GET /sizes
+
+Fetches all sizes defined in the store.
+
+**Response:** `Size[]`
+
+---
+
+### GET /colors
+
+Fetches all colors defined in the store.
+
+**Response:** `Color[]`
+
+---
+
+## Response shapes
+
+All TypeScript interfaces are defined in `types/types.ts`.
+
+### Product
+
+The most complex response type. Returned by `GET /products` and `GET /products/:id`.
+
+```typescript types/types.ts
+export interface Product {
+  id: string;
+  category: Category;
+  name: string;
+  price: string;
+  isFeatured: boolean;
+  size: Size;
+  color: Color;
+  images: Image[];
+}
+
+export interface Image {
+  id: string;
+  url: string;
+}
+```
+
+<ResponseField name="id" type="string" required>
+  Unique identifier for the product.
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  Display name of the product.
+</ResponseField>
+
+<ResponseField name="price" type="string" required>
+  Price as a string (e.g. `"29.99"`). Formatted for display using the `Currency` component.
+</ResponseField>
+
+<ResponseField name="isFeatured" type="boolean" required>
+  Whether the product appears on the homepage featured list.
+</ResponseField>
+
+<ResponseField name="category" type="object" required>
+  <Expandable title="Category properties">
+    <ResponseField name="id" type="string" required>
+      Unique identifier for the category.
+    </ResponseField>
+    <ResponseField name="name" type="string" required>
+      Display name of the category.
+    </ResponseField>
+    <ResponseField name="billboard" type="object" required>
+      <Expandable title="Billboard properties">
+        <ResponseField name="id" type="string" required>
+          Unique identifier for the billboard.
+        </ResponseField>
+        <ResponseField name="label" type="string" required>
+          Text label displayed on the billboard.
+        </ResponseField>
+        <ResponseField name="imageUrl" type="string" required>
+          URL of the billboard background image.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="size" type="object" required>
+  <Expandable title="Size properties">
+    <ResponseField name="id" type="string" required>
+      Unique identifier for the size.
+    </ResponseField>
+    <ResponseField name="name" type="string" required>
+      Human-readable size name (e.g. `"Large"`).
+    </ResponseField>
+    <ResponseField name="value" type="string" required>
+      Size abbreviation (e.g. `"L"`).
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="color" type="object" required>
+  <Expandable title="Color properties">
+    <ResponseField name="id" type="string" required>
+      Unique identifier for the color.
+    </ResponseField>
+    <ResponseField name="name" type="string" required>
+      Human-readable color name (e.g. `"Black"`).
+    </ResponseField>
+    <ResponseField name="value" type="string" required>
+      Hex color code (e.g. `"#000000"`).
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="images" type="Image[]" required>
+  Array of product images. Each image has an `id` (string) and `url` (string) pointing to a Cloudinary-hosted image.
+</ResponseField>
+
+---
+
+### Category
+
+```typescript types/types.ts
+export interface Category {
+  id: string;
+  name: string;
+  billboard: Billboard;
+}
+```
+
+<ResponseField name="id" type="string" required>
+  Unique identifier for the category.
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  Display name shown in the navigation and category pages.
+</ResponseField>
+
+<ResponseField name="billboard" type="object" required>
+  The billboard associated with this category. See Billboard fields below.
+</ResponseField>
+
+---
+
+### Billboard
+
+```typescript types/types.ts
+export interface Billboard {
+  id: string;
+  label: string;
+  imageUrl: string;
+}
+```
+
+<ResponseField name="id" type="string" required>
+  Unique identifier for the billboard.
+</ResponseField>
+
+<ResponseField name="label" type="string" required>
+  Text label overlaid on the billboard image.
+</ResponseField>
+
+<ResponseField name="imageUrl" type="string" required>
+  URL of the background image, typically hosted on Cloudinary.
+</ResponseField>
+
+---
+
+### Size
+
+```typescript types/types.ts
+export interface Size {
+  id: string;
+  name: string;
+  value: string;
+}
+```
+
+<ResponseField name="id" type="string" required>
+  Unique identifier for the size.
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  Human-readable label (e.g. `"Extra Large"`).
+</ResponseField>
+
+<ResponseField name="value" type="string" required>
+  Short abbreviation used in filter UI (e.g. `"XL"`).
+</ResponseField>
+
+---
+
+### Color
+
+```typescript types/types.ts
+export interface Color {
+  id: string;
+  name: string;
+  value: string;
+}
+```
+
+<ResponseField name="id" type="string" required>
+  Unique identifier for the color.
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  Human-readable color name (e.g. `"White"`).
+</ResponseField>
+
+<ResponseField name="value" type="string" required>
+  Hex color code used to render the color swatch in the filter UI (e.g. `"#FFFFFF"`).
+</ResponseField>
+
+---
+
+## Hardcoded billboard ID
+
+<Note>
+  The homepage fetches a billboard using a hardcoded ID in `app/(routes)/page.tsx`:
+
+  ```typescript app/(routes)/page.tsx
+  const billboard = await getBillboard("75c73606-f10d-48eb-9d57-440b98c484f6");
+  ```
+
+  This ID must match an existing billboard in your backend. If you are connecting to a new backend store, update this value to match the billboard ID shown in your admin dashboard.
+</Note>

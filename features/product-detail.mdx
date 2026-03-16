@@ -1,0 +1,170 @@
+---
+title: "Product detail"
+description: "Product detail page with image gallery, product info, and related product suggestions."
+---
+
+The product detail page lives at `/product/[productId]`. It is a server component that fetches the requested product and a list of suggested products from the same category, then renders them in a two-column layout.
+
+## Route
+
+```
+/product/[productId]
+```
+
+## Page source code
+
+```tsx app/(routes)/product/[productId]/page.tsx
+import getProduct from "@/actions/get-product";
+import getProducts from "@/actions/get-products";
+import Gallery from "@/components/Gallery";
+import Info from "@/components/Info";
+import ProductList from "@/components/ProductList";
+import Container from "@/components/ui/Container";
+import { ProductPageProps } from "@/types/types";
+import React from "react";
+
+const ProductPage = async ({ params }: ProductPageProps) => {
+  const product = await getProduct(params.productId);
+  const suggestedProducts = await getProducts({
+    categoryId: product?.category?.id,
+  });
+  return (
+    <div className="bg-white">
+      <Container>
+        <div className="px-4 py-10 sm:px-6 lg:px-8">
+          <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-8">
+            {/* Gallery */}
+            <Gallery images={product.images} />
+            <div className="mt-10 px-4 sm:mt-16 sm:px-0 lg:mt-0">
+              {/* Info */}
+              <Info data={product} />
+            </div>
+          </div>
+          <hr className="my-10" />
+          <ProductList title="You may Like" items={suggestedProducts} />
+        </div>
+      </Container>
+    </div>
+  );
+};
+
+export default ProductPage;
+```
+
+## Page layout
+
+<Steps>
+  <Step title="Gallery (left column)">
+    Receives the product's `images` array and renders a main image with thumbnail tabs for switching between images.
+  </Step>
+  <Step title="Info (right column)">
+    Displays the product name, price, size, color swatch, and an Add to Cart button.
+  </Step>
+  <Step title="You may Like (below the fold)">
+    A `ProductList` section filtered by the same `categoryId` as the current product. All products in the category are returned, including the current item.
+  </Step>
+</Steps>
+
+## Related products
+
+Suggested products are fetched by passing the current product's category ID to `getProducts`:
+
+```typescript
+const suggestedProducts = await getProducts({
+  categoryId: product?.category?.id,
+});
+```
+
+This returns every product in the same category. No explicit exclusion of the current product is applied.
+
+## Info component
+
+The `Info` component is a client component that connects to the `useCart` Zustand store to handle add-to-cart actions.
+
+```tsx components/Info.tsx
+"use client";
+import { InfoProps } from "@/types/types";
+import React, { MouseEventHandler } from "react";
+import Currency from "./ui/Currency";
+import Button from "./ui/Button";
+import { ShoppingCart } from "lucide-react";
+import useCart from "@/hooks/use-cart";
+
+const Info = ({ data }: InfoProps) => {
+  const cart = useCart();
+  const onAddToCart: MouseEventHandler<HTMLButtonElement> = (event) => {
+    event.stopPropagation();
+    cart.addItem(data);
+  };
+  return (
+    <div>
+      <h1 className="text-3xl font-bold text-gray-900">{data.name}</h1>
+      <div className="mt-3 flex items-end justify-between">
+        <p className="text-2xl text-gray-900">
+          <Currency value={data?.price} />
+        </p>
+      </div>
+      <hr className="my-4" />
+      <div className="flex flex-col gap-y-6">
+        <div className="flex items-center gap-x-4">
+          <h3 className="font-semibold text-black">Size:</h3>
+          <div>{data?.size?.name}</div>
+        </div>
+        <div className="flex items-center gap-x-4">
+          <h3 className="font-semibold text-black">Color:</h3>
+          <div
+            className="h-6 w-6 rounded-full border border-gray-600"
+            style={{ background: data?.color?.value }}
+          />
+        </div>
+      </div>
+      <div className="mt-10 flex items-center gap-x-3">
+        <Button className="flex items-center gap-x-2" onClick={onAddToCart}>
+          Add To Cart <ShoppingCart />
+        </Button>
+      </div>
+    </div>
+  );
+};
+```
+
+### Info fields rendered
+
+| Field | Display |
+|---|---|
+| `data.name` | `<h1>` heading |
+| `data.price` | Formatted by the `Currency` component |
+| `data.size.name` | Plain text next to a "Size:" label |
+| `data.color.value` | CSS background on a `24×24px` circle |
+
+## Product TypeScript interface
+
+```typescript types/types.ts
+export interface Product {
+  id: string;
+  category: Category;
+  name: string;
+  price: string;       // Stored as a string; converted with Number() when summing
+  isFeatured: boolean;
+  size: Size;
+  color: Color;
+  images: Image[];
+}
+
+export interface Size {
+  id: string;
+  name: string;  // e.g. "Large"
+  value: string; // e.g. "L"
+}
+
+export interface Color {
+  id: string;
+  name: string;  // e.g. "Red"
+  value: string; // CSS color value, e.g. "#FF0000"
+}
+
+export interface Image {
+  id: string;
+  url: string;
+}
+```

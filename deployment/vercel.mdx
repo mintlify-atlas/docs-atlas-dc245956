@@ -1,0 +1,97 @@
+---
+title: 'Deploy to Vercel'
+description: 'Deploy E-Dokan to production on Vercel.'
+---
+
+Vercel is the recommended platform for deploying E-Dokan. It provides zero-configuration builds for Next.js, automatic HTTPS, and preview deployments out of the box.
+
+## Prerequisites
+
+- The E-Dokan repository pushed to GitHub (or GitLab / Bitbucket)
+- A deployed backend API with a known `NEXT_PUBLIC_API_URL` value
+- A [Vercel account](https://vercel.com/signup)
+
+## Deploy via the Vercel dashboard
+
+<Steps>
+  <Step title="Push your code to GitHub">
+    Commit all changes and push the repository to GitHub.
+
+    ```bash
+    git add .
+    git commit -m "initial commit"
+    git push origin main
+    ```
+  </Step>
+
+  <Step title="Import the repository in Vercel">
+    Go to [vercel.com/new](https://vercel.com/new), click **Add New Project**, and select your GitHub repository. Vercel automatically detects the Next.js framework and sets the correct build settings.
+  </Step>
+
+  <Step title="Set the environment variable">
+    In the **Environment Variables** section of the project import screen, add:
+
+    | Name | Value |
+    |---|---|
+    | `NEXT_PUBLIC_API_URL` | `https://your-admin.vercel.app/api/your-store-id` |
+
+    You can also add or update this variable later under **Project Settings → Environment Variables**. Any change requires a new deployment to take effect.
+  </Step>
+
+  <Step title="Deploy">
+    Click **Deploy**. Vercel runs `next build` and publishes the output. When the build completes, your storefront is live at the generated `.vercel.app` URL.
+  </Step>
+</Steps>
+
+## Deploy via the Vercel CLI
+
+As an alternative to the dashboard, deploy directly from your terminal:
+
+```bash
+npx vercel --prod
+```
+
+The CLI will prompt you to log in, link the project, and confirm environment variables on first run. Subsequent runs deploy immediately.
+
+## Build scripts
+
+The following npm scripts are used during the build and serve lifecycle:
+
+| Script | Command | Description |
+|---|---|---|
+| `build` | `next build` | Compiles the Next.js app and generates optimized static and server output |
+| `start` | `next start` | Starts the production Node.js server after a build (used when self-hosting) |
+
+Vercel invokes `next build` automatically. The `next start` script is only needed when running the production build on your own server outside of Vercel.
+
+## Data freshness
+
+<Note>
+  All pages in E-Dokan export `revalidate = 0`, which disables Next.js caching entirely:
+
+  ```typescript app/(routes)/page.tsx
+  export const revalidate = 0;
+  ```
+
+  Every request fetches fresh data directly from the API. There is no stale cache to invalidate when you update products, categories, or billboards in your admin dashboard — changes appear immediately on the next page load.
+</Note>
+
+## Image optimization
+
+E-Dokan uses the Next.js `<Image>` component for automatic image optimization. The Cloudinary domain is pre-configured in `next.config.js`, so no additional setup is required:
+
+```javascript next.config.js
+const nextConfig = {
+  images: {
+    domains: ["res.cloudinary.com"]
+  }
+};
+```
+
+Vercel serves optimized images at the correct size and format for each device automatically. If your backend uses a different image host, add its domain to the `domains` array before deploying.
+
+## Preview deployments
+
+<Tip>
+  Every pull request opened against your main branch automatically receives a unique preview URL from Vercel. Use preview deployments to test changes against your live API before merging — no extra configuration needed.
+</Tip>

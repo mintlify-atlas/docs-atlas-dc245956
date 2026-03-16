@@ -1,0 +1,226 @@
+---
+title: "Shopping cart"
+description: "Client-side cart page backed by a Zustand store with localStorage persistence."
+---
+
+The cart page is a client component that reads from the `useCart` Zustand store and renders the list of cart items alongside an order summary with checkout.
+
+## Page source code
+
+```tsx app/(routes)/cart/page.tsx
+"use client";
+
+import { useEffect, useState } from "react";
+import Container from "@/components/ui/Container";
+import useCart from "@/hooks/use-cart";
+import Summary from "./components/Summary";
+import CartItem from "./components/CartItem";
+
+const CartPage = () => {
+  const [isMounted, setIsMounted] = useState(false);
+  const cart = useCart();
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted) {
+    return null;
+  }
+
+  return (
+    <div className="bg-white">
+      <Container>
+        <div className="px-4 py-16 sm:px-6 lg:px-8">
+          <h1 className="text-3xl font-bold text-black">Shopping Cart</h1>
+          <div className="mt-12 lg:grid lg:grid-cols-12 lg:items-start gap-x-12">
+            <div className="lg:col-span-7">
+              {cart.items.length === 0 && (
+                <p className="text-neutral-500">No items added to cart.</p>
+              )}
+              <ul>
+                {cart.items.map((item) => (
+                  <CartItem key={item.id} data={item} />
+                ))}
+              </ul>
+            </div>
+            <Summary />
+          </div>
+        </div>
+      </Container>
+    </div>
+  );
+};
+
+export default CartPage;
+```
+
+## Hydration guard
+
+The cart is stored in `localStorage`, which is unavailable during server-side rendering. To prevent a hydration mismatch, the component returns `null` until it confirms it is running in the browser:
+
+```typescript
+const [isMounted, setIsMounted] = useState(false);
+
+useEffect(() => {
+  setIsMounted(true);
+}, []);
+
+if (!isMounted) {
+  return null;
+}
+```
+
+The `useEffect` callback only runs on the client. Once it fires, `isMounted` becomes `true` and the cart UI is rendered with the persisted data.
+
+## useCart hook
+
+The cart state is managed with Zustand and persisted to `localStorage` under the key `cart-storage`.
+
+```typescript hooks/use-cart.ts
+import { create } from "zustand";
+import { CartStore, Product } from "@/types/types";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { toast } from "react-hot-toast";
+
+const useCart = create(
+  persist<CartStore>(
+    (set, get) => ({
+      items: [],
+      addItem: (data: Product) => {
+        const currentItems = get().items;
+        const existingItem = currentItems.find((item) => item.id === data.id);
+
+        if (existingItem) {
+          return toast("Item already in cart.");
+        }
+
+        set({ items: [...get().items, data] });
+        toast.success("Item added to cart.");
+      },
+      removeItem: (id: string) => {
+        set({ items: [...get().items.filter((item) => item.id !== id)] });
+        toast.success("Item removed from the cart");
+      },
+      removeAll: () => set({ items: [] }),
+    }),
+    {
+      name: "cart-storage",
+      storage: createJSONStorage(() => localStorage),
+    }
+  )
+);
+
+export default useCart;
+```
+
+### CartStore interface
+
+```typescript types/types.ts
+export interface CartStore {
+  items: Product[];
+  addItem: (data: Product) => void;
+  removeItem: (id: string) => void;
+  removeAll: () => void;
+}
+```
+
+### Store actions
+
+| Action | Behaviour |
+|---|---|
+| `addItem(product)` | Adds the product if its ID is not already in the cart; shows a toast if it is |
+| `removeItem(id)` | Filters the item with the matching ID out of the items array |
+| `removeAll()` | Resets items to an empty array (called on successful checkout) |
+
+### Duplicate detection
+
+`addItem` checks for an existing item by `id` before adding:
+
+```typescript
+const existingItem = currentItems.find((item) => item.id === data.id);
+
+if (existingItem) {
+  return toast("Item already in cart.");
+}
+```
+
+Each product can only appear once in the cart, regardless of how many times the user clicks "Add to Cart".
+
+### localStorage persistence
+
+The Zustand `persist` middleware serialises the entire store to JSON and writes it to `localStorage` under the key `"cart-storage"`. The cart survives page refreshes and browser restarts.
+
+<Note>
+Clearing the browser's localStorage (e.g. via DevTools) will empty the persisted cart. This is expected behaviour for a client-side-only cart without a backend session.
+</Note>
+
+## CartItem component
+
+Each item in the cart is rendered by `CartItem`, which displays the product image, name, color, size, price, and a remove button.
+
+```tsx app/(routes)/cart/components/CartItem.tsx
+const CartItem = ({ data }: CartItemsProps) => {
+  const cart = useCart();
+  const onRemove = () => {
+    cart.removeItem(data.id);
+  };
+  return (
+    <li className="flex py-6 border-b">
+      {/* Product image */}
+      <div className="relative h-24 w-24 rounded-md overflow-hidden sm:h-48 sm:w-48">
+        <Image fill src={data.images[0].url} alt="" className="object-cover object-center" />
+      </div>
+      <div className="relative ml-4 flex flex-1 flex-col justify-between sm:ml-6">
+        {/* Remove button */}
+        <div className="absolute z-10 right-0 top-0">
+          <IconButton onClick={onRemove} icon={<X size={15} />} />
+        </div>
+        <p className="text-lg font-semibold text-black">{data.name}</p>
+        <p className="text-gray-500">{data.color.name}</p>
+        <p className="text-gray-500">{data.size.name}</p>
+        <Currency value={data.price} />
+      </div>
+    </li>
+  );
+};
+```
+
+## Summary component
+
+The `Summary` component displays the order total and the checkout button. On successful payment, Stripe redirects back to the cart page with `?success=true`, which triggers `removeAll()` to clear the cart.
+
+```tsx app/(routes)/cart/components/Summary.tsx
+const Summary = () => {
+  const searchParams = useSearchParams();
+  const items = useCart((state) => state.items);
+  const removeAll = useCart((state) => state.removeAll);
+
+  useEffect(() => {
+    if (searchParams.get("success")) {
+      toast.success("Payment completed.");
+      removeAll();
+    }
+    if (searchParams.get("canceled")) {
+      toast.error("Something went wrong.");
+    }
+  }, [searchParams, removeAll]);
+
+  const totalPrice = items.reduce((total, item) => {
+    return total + Number(item.price);
+  }, 0);
+
+  const onCheckout = async () => {
+    const response = await axios.post(
+      `${process.env.NEXT_PUBLIC_API_URL}/checkout`,
+      { productIds: items.map((item) => item.id) }
+    );
+    window.location = response.data.url;
+  };
+  // ...
+};
+```
+
+<Tip>
+The checkout flow posts product IDs to the backend's `/checkout` endpoint, which creates a Stripe session and returns a redirect URL. The browser is then navigated directly to the Stripe-hosted checkout page.
+</Tip>

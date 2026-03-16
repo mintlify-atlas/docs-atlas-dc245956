@@ -1,0 +1,145 @@
+---
+title: "Data fetching"
+description: "How E-Dokan Store fetches data from the backend API using plain async functions in the actions/ directory."
+---
+
+All server-side data fetching is handled by the functions in the `actions/` directory. These are plain async TypeScript functions — no special framework hooks, no React Query, no SWR. They call the backend REST API using the native `fetch` API and return fully-typed results.
+
+## Environment variable
+
+Every action derives its base URL from a single environment variable:
+
+```bash .env.local
+NEXT_PUBLIC_API_URL=https://your-backend-api.com/api/store-id
+```
+
+Each action file declares its own `URL` constant at module scope:
+
+```typescript
+const URL = `${process.env.NEXT_PUBLIC_API_URL}/products`;
+```
+
+<Note>
+The `NEXT_PUBLIC_` prefix makes the variable available in both server and client bundles. However, actions are only ever called from server components or async page functions, so the value is never exposed in client-side JavaScript bundles at runtime.
+</Note>
+
+## Action functions reference
+
+| Function | File | Endpoint | Return type | Parameters |
+|---|---|---|---|---|
+| `getProducts` | `actions/get-products.tsx` | `GET /products` | `Promise<Product[]>` | `Query` (see below) |
+| `getProduct` | `actions/get-product.tsx` | `GET /products/:id` | `Promise<Product>` | `id: string` |
+| `getBillboard` | `actions/get-billboard.tsx` | `GET /billboards/:id` | `Promise<Billboard>` | `id: string` |
+| `getCategories` | `actions/get-catgeories.tsx` | `GET /categories` | `Promise<Category[]>` | none |
+| `getCategory` | `actions/get-category.tsx` | `GET /categories/:id` | `Promise<Category>` | `id: string` |
+| `getSizes` | `actions/get-sizes.tsx` | `GET /sizes` | `Promise<Size[]>` | none |
+| `getColors` | `actions/get-colors.tsx` | `GET /colors` | `Promise<Color[]>` | none |
+
+## getProducts — query string construction
+
+`getProducts` is the most complex action because it supports optional filtering. It accepts a `Query` object and builds the URL query string only for parameters that are actually provided:
+
+```typescript actions/get-products.tsx
+import { Product } from "@/types/types";
+
+const URL = `${process.env.NEXT_PUBLIC_API_URL}/products`;
+
+interface Query {
+  categoryId?: string;
+  colorId?: string;
+  sizeId?: string;
+  isFeatured?: boolean;
+}
+
+const getProducts = async ({
+  categoryId,
+  colorId,
+  sizeId,
+  isFeatured,
+}: Query): Promise<Product[]> => {
+  const queryParams = [];
+
+  if (categoryId) queryParams.push(`categoryId=${categoryId}`);
+  if (colorId) queryParams.push(`colorId=${colorId}`);
+  if (sizeId) queryParams.push(`sizeId=${sizeId}`);
+  if (isFeatured !== undefined) queryParams.push(`isFeatured=${isFeatured}`);
+
+  const urlWithQuery =
+    queryParams.length > 0 ? `${URL}?${queryParams.join("&")}` : URL;
+
+  const res = await fetch(urlWithQuery);
+  return res.json();
+};
+
+export default getProducts;
+```
+
+<Tip>
+`isFeatured` is checked with `!== undefined` rather than a truthy check so that passing `isFeatured: false` explicitly still appends the parameter to the query string.
+</Tip>
+
+### Query interface fields
+
+| Field | Type | Description |
+|---|---|---|
+| `categoryId` | `string` (optional) | Filter products by category |
+| `colorId` | `string` (optional) | Filter products by color |
+| `sizeId` | `string` (optional) | Filter products by size |
+| `isFeatured` | `boolean` (optional) | Filter to only featured (or non-featured) products |
+
+## getBillboard
+
+```typescript actions/get-billboard.tsx
+import { Billboard } from "@/types/types";
+
+const URL = `${process.env.NEXT_PUBLIC_API_URL}/billboards`;
+
+const getBillboard = async (id: string): Promise<Billboard> => {
+  const res = await fetch(`${URL}/${id}`);
+  return res.json();
+};
+
+export default getBillboard;
+```
+
+## getCategories
+
+```typescript actions/get-catgeories.tsx
+import { Category } from "@/types/types";
+
+const URL = `${process.env.NEXT_PUBLIC_API_URL}/categories`;
+
+const getCategories = async (): Promise<Category[]> => {
+  const res = await fetch(URL);
+  return res.json();
+};
+
+export default getCategories;
+```
+
+## Cache revalidation
+
+Pages that use actions export `revalidate = 0` to opt out of Next.js's data cache entirely:
+
+```tsx app/(routes)/page.tsx
+export const revalidate = 0;
+
+const HomePage = async () => {
+  const billboard = await getBillboard("75c73606-f10d-48eb-9d57-440b98c484f6");
+  const product = await getProducts({ isFeatured: true });
+  // ...
+};
+```
+
+With `revalidate = 0`, Next.js treats every incoming request as a cache miss and always fetches fresh data from the API. This means product listings, category pages, and the homepage always reflect the current state of the backend store without requiring a redeploy or manual cache purge.
+
+| Page | `revalidate` value | Effect |
+|---|---|---|
+| `app/(routes)/page.tsx` | `0` | Always fetch fresh |
+| `app/(routes)/category/[categoryId]/page.tsx` | `0` | Always fetch fresh |
+| `app/(routes)/product/[productId]/page.tsx` | not set (default) | Next.js default caching |
+| `app/(routes)/cart/page.tsx` | N/A (client component) | No server fetching |
+
+<Note>
+Product images are served from Cloudinary. The `next.config.js` file must include `res.cloudinary.com` in the `images.domains` (or `images.remotePatterns`) list, otherwise Next.js's `<Image>` optimisation will refuse to load the images.
+</Note>

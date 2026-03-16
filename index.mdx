@@ -1,97 +1,45 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "E-Dokan Store"
+description: "A modern Next.js e-commerce storefront — browse products, filter by category, and manage your cart."
 ---
 
-## Setting up
+E-Dokan Store is a full-featured e-commerce storefront built with **Next.js 13** (App Router), **TypeScript**, and **Tailwind CSS**. It connects to a headless backend API to deliver a fast, responsive shopping experience.
 
-Get your documentation site up and running in minutes.
-
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
-
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get the store running locally in minutes
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Core Features" icon="star" href="/features/homepage">
+    Explore the homepage, categories, cart, and more
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Architecture" icon="diagram-project" href="/architecture/overview">
+    Understand how the app is structured
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="Configuration" icon="gear" href="/configuration/environment-variables">
+    Connect to your backend API
   </Card>
-</Columns>
+</CardGroup>
 
-## Create beautiful pages
+## What is E-Dokan?
 
-Everything you need to create world-class documentation.
+E-Dokan (meaning "E-Shop") is a storefront-only Next.js application designed to be paired with a headless commerce backend that exposes a REST API. The store fetches all product, category, billboard, size, and color data at runtime from an external API configured via an environment variable.
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+Key characteristics:
 
-## Need inspiration?
+- **Server-side rendering by default** — product and category pages are rendered on the server for fast initial loads
+- **Client-side cart** — the shopping cart lives entirely in the browser using Zustand, persisted to `localStorage`
+- **No shopper auth required** — no login needed to browse or add items to cart
+- **Responsive** — works across mobile, tablet, and desktop screens
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| Framework | Next.js 13 (App Router) |
+| Language | TypeScript |
+| Styling | Tailwind CSS |
+| State management | Zustand |
+| HTTP client | Native `fetch` |
+| Notifications | react-hot-toast |
+| Icons | lucide-react, react-icons |
+| UI primitives | @headlessui/react |

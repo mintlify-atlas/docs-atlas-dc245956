@@ -1,0 +1,64 @@
+---
+title: Introduction
+description: Welcome to E-Dokan Store — a modern Next.js e-commerce storefront.
+---
+
+E-Dokan Store is a full-featured e-commerce storefront built with **Next.js 13** (App Router), **TypeScript**, and **Tailwind CSS**. It connects to a headless backend API to deliver a fast, responsive shopping experience with dynamic product browsing, category filtering, a persistent cart, and smooth product previews.
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get the store running locally in minutes
+  </Card>
+  <Card title="Core Features" icon="star" href="/features/homepage">
+    Explore the homepage, categories, cart, and more
+  </Card>
+  <Card title="Architecture" icon="diagram-project" href="/architecture/overview">
+    Understand how the app is structured
+  </Card>
+  <Card title="Configuration" icon="gear" href="/configuration/environment-variables">
+    Connect to your backend API
+  </Card>
+</CardGroup>
+
+## What is E-Dokan?
+
+E-Dokan (meaning "E-Shop") is a storefront-only Next.js application designed to be paired with a headless commerce backend (such as an admin dashboard that exposes a REST API). The store fetches all product, category, billboard, size, and color data at runtime from an external API configured via an environment variable.
+
+Key characteristics:
+
+- **Server-side rendering by default** — product pages and category pages are rendered on the server for fast initial loads
+- **Client-side cart** — the shopping cart lives entirely in the browser using Zustand, persisted to `localStorage`
+- **Zero auth required for shoppers** — no login needed to browse or add items to cart
+- **Responsive** — works across mobile, tablet, and desktop screens
+
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| Framework | Next.js 13 (App Router) |
+| Language | TypeScript |
+| Styling | Tailwind CSS |
+| State management | Zustand |
+| HTTP client | Native `fetch` |
+| Notifications | react-hot-toast |
+| Icons | lucide-react, react-icons |
+| UI primitives | @headlessui/react |
+
+## Repository structure
+
+```
+edokan-store/
+├── app/
+│   └── (routes)/
+│       ├── page.tsx          # Homepage
+│       ├── cart/             # Shopping cart
+│       ├── category/[categoryId]/  # Category listing
+│       └── product/[productId]/   # Product detail
+├── actions/                  # Server-side data fetching functions
+├── components/               # Shared UI components
+│   └── ui/                   # Base UI primitives
+├── hooks/                    # Zustand stores (cart, preview modal)
+├── providers/                # React context providers
+├── types/                    # TypeScript interfaces
+└── lib/                      # Utility functions
+```
