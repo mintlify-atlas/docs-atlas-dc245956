@@ -1,0 +1,72 @@
+{
+  "projectType": "saas",
+  "projectName": "E-Dokan Store",
+  "projectDescription": "A full-stack Next.js e-commerce storefront that lets shoppers browse categories, filter products by size and color, preview items, and manage a persistent shopping cart.",
+  "theme": "almond",
+  "primaryColor": "#2563EB",
+  "lightColor": "#DBEAFE",
+  "darkColor": "#1E40AF",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": ["introduction", "quickstart"]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/homepage",
+              "features/categories",
+              "features/product-detail",
+              "features/cart",
+              "features/filtering"
+            ]
+          },
+          {
+            "group": "Architecture",
+            "pages": [
+              "architecture/overview",
+              "architecture/data-fetching",
+              "architecture/state-management"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/environment-variables",
+              "configuration/api-integration"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": ["deployment/vercel"]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Dynamic product catalog with category-based navigation",
+    "Billboard/hero banners per category and homepage",
+    "Product filtering by size and color (desktop and mobile)",
+    "Product detail page with image gallery and suggested products",
+    "Persistent shopping cart powered by Zustand and localStorage",
+    "Quick-preview modal for products without leaving the listing",
+    "Toast notifications for cart actions",
+    "Responsive design with Tailwind CSS"
+  ],
+  "publicApiSurface": [
+    "GET /products — fetch products with optional categoryId, colorId, sizeId, isFeatured filters",
+    "GET /products/:id — fetch a single product by ID",
+    "GET /categories — fetch all categories",
+    "GET /categories/:id — fetch a single category",
+    "GET /billboards/:id — fetch a billboard by ID",
+    "GET /sizes — fetch all sizes",
+    "GET /colors — fetch all colors",
+    "useCart() — Zustand store: { items, addItem, removeItem, removeAll }",
+    "usePreviewModal() — Zustand store: { isOpen, data, onOpen, onClose }"
+  ]
+}
